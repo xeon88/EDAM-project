@@ -29,6 +29,8 @@
   waves: nil, // waves synth
   wind: nil, // wind synth
   water_rout: nil, // water routine
+  grug: nil,
+  noise: nil,
   water_synth: nil, // water synth
   didger_rout:nil // didgeridoo routine
 );
@@ -107,21 +109,21 @@ SynthDef(\grugling,{
 
   var triglobal, freq, grugling , freq_dust;
 
-   freq_dust=170;
-	 grugling={6.collect({
+   freq_dust=120;
+	 grugling={10.collect({
 
     triglobal = Dust.kr(freq_dust);
 		freq =
 			// Generally choose from a varied base freq
-			TExpRand.kr(400,5000, triglobal)
+			TRand.kr(400,10000, triglobal)
 			// Wobbly variation
-			+ LFNoise0.kr(20, mul: 300)
+			+ LFNoise0.kr(20, mul: 150)
     // General tendency for upward rise
-    + EnvGen.kr(Env.perc(1).range(0,10), triglobal);
-    SinOsc.ar(freq, Rand(0,pi), 0.1);
+    + EnvGen.kr(Env.perc(1).range(0,17), triglobal);
+    BLowPass.ar(SinOsc.ar(freq,Rand(0,pi/2), 0.05),2000,1.75);
     }).mean;
   };
-  grugling=BBandPass.ar(grugling,2000,1.5);
+
   Out.ar(~global[\bus][\grug].index,grugling);
 }).add;
 
@@ -134,10 +136,10 @@ SynthDef(\waternoise,{
    arg index;
    var freq;
     freq =100+1000*index+ Rand(0,0.125);
-    SinOsc.ar(freq,0,0.05/(100*index+1)**2);
+    SinOsc.ar(freq,0,0.15/(100*index+1)**2);
 });
 
-  noise=noise * WhiteNoise.ar(0.5);
+  noise=noise + WhiteNoise.ar(0.001);
   noise=BLowPass.ar(noise,2000,1.5);
   noise=GVerb.ar(noise,250,2.5,0.7,0.4,15,0.4);
   Out.ar(~global[\bus][\waternoise].index,noise);
@@ -246,13 +248,13 @@ Routine to compute water sound
 
 ~global[\water_rout]=Routine.new({
 
-  20.do({
-    x=Synth(\grugling);
+  ~global[\grug]=Synth(\grugling);
+  9.do({
+    ~global[\grug]=Synth.after(~global[\grug],\grugling);
   });
-  y=Synth.after(x,\waternoise);
-  ~global[\water_synth]=Synth.after(y,\water);
-  //x.free;
-  //y.free;
+
+  ~global[\noise]=Synth.after(~global[\grug],\waternoise);
+  ~global[\water]=Synth.after(~global[\noise],\water);
 });
 
 
@@ -268,6 +270,7 @@ Routine to compute water sound
 });
 
 )
+
 
 (
 
@@ -472,7 +475,6 @@ didg_label.stringColor=Color.white;
 
 //controller for the stereo position of pad
 slider_soundscape.action={|sl| if(~global[\main].isRunning == true,{ ~global[\water_synth].set(\pos,wat_p.map(sl.value));
-  wat_p.map(sl.value).postln;
 })};
 //controller for the frequencies waves
 frequencies_knob.action = {|i| if(~global[\main].isRunning == true,{~global[\waves].set(\offset_freq, bin_c.map(i.value))})};
@@ -508,14 +510,18 @@ playStop.action = {|x|
       ~global[\main]=Synth.after(~global[\wind],\main,[\pad_vol,pad_knob.value, \waves_vol,waves_knob.value ,\water_vol,water_knob.value,\didger_vol,didg_knob.value]);
     ~global[\pad].reset;
     ~global[\pad].play(SystemClock);
-    ~global[\didger].reset;
-    ~global[\didger].play(SystemClock);
+    ~global[\didger_rout].reset;
+    ~global[\didger_rout].play(SystemClock);
 		//create a node watcher for meaningfull isRunning
 		NodeWatcher.register(~global[\main], true);
     ~global[\water_rout].reset;
     ~global[\water_rout].play(SystemClock);
 
-	});
+
+  });
+
+
+
 };
 
 
@@ -539,11 +545,22 @@ window.front ;
 )
 s.scope;
 s.queryAllNodes;
+s.freeAll;
 
 (
 ~global[\pad].stop;
-~global[\didger].stop;
+~global[\didger_rout].stop;
 ~global[\water_rout].stop;
 s.freeAll;
 s.queryAllNodes;
+)
+
+(
+
+w = Window("My Analyzer", Rect(0, 0, 2100, 1200)); // width should be 511
+   f = FreqScopeView(w, w.view.bounds);
+   f.active_(true); // turn it on the first time;
+   f.dbRange_(200);
+   w.onClose_({ f.kill }); // you must have this
+   w.front;
 )
