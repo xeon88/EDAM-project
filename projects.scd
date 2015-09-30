@@ -17,8 +17,8 @@
      waves: Bus.audio(s,2),
      pad: Bus.audio(s,2),
      water: Bus.audio(s,2),
-     waternoise: Bus.audio(s,2),
-     grug:Bus.audio(s,2),
+     waternoise: Bus.audio(s,1),
+     grug:Bus.audio(s,1),
      didger: Bus.audio(s,2)
   ),
   main: nil, // main synth
@@ -145,12 +145,12 @@ SynthDef(\waternoise,{
 
 
 
-SynthDef(\water,{ |pos=0.5|
+SynthDef(\water,{ |pos=0|
 
   var noise, grug , water, cp;
 
-  noise=In.ar(~global[\bus][\waternoise].index,2);
-  grug=In.ar(~global[\bus][\grug].index,2);
+  noise=In.ar(~global[\bus][\waternoise].index,1);
+  grug=In.ar(~global[\bus][\grug].index,1);
   water=noise+grug;
   Out.ar(~global[\bus][\water].index,Pan2.ar(water,pos));
 }).add;
@@ -537,7 +537,7 @@ window.onClose = {
 window.front ;
 
 )
-
+s.scope;
 s.queryAllNodes;
 
 (
