@@ -110,7 +110,7 @@ SynthDef(\grugling,{
   var triglobal, freq, grugling , freq_dust;
 
    freq_dust=120;
-	 grugling={10.collect({
+	 grugling={6.collect({
 
     triglobal = Dust.kr(freq_dust);
 		freq =
@@ -154,7 +154,8 @@ SynthDef(\water,{ |pos=0|
   noise=In.ar(~global[\bus][\waternoise].index,1);
   grug=In.ar(~global[\bus][\grug].index,1);
   water=noise+grug;
-  Out.ar(~global[\bus][\water].index,Pan2.ar(water,pos));
+  Out.ar(~global[\bus][\water].index,
+    Pan2.ar(water,pos));
 }).add;
 
 
@@ -249,12 +250,12 @@ Routine to compute water sound
 ~global[\water_rout]=Routine.new({
 
   ~global[\grug]=Synth(\grugling);
-  9.do({
+  15.do({
     ~global[\grug]=Synth.after(~global[\grug],\grugling);
   });
 
   ~global[\noise]=Synth.after(~global[\grug],\waternoise);
-  ~global[\water]=Synth.after(~global[\noise],\water);
+  ~global[\water_synth]=Synth.after(~global[\noise],\water,[\pos,0]);
 });
 
 
@@ -465,7 +466,7 @@ didg_label.stringColor=Color.white;
   wav_v=ControlSpec.new(0.0,0.2, \lin, 0.01);
   did_v=ControlSpec.new(0.0,0.5, \lin, 0.01);
   wat_v=ControlSpec.new(0.0,0.5, \lin, 0.01);
-  wat_p=ControlSpec.new(-1.0,1.0, \lin, 0.01);
+  wat_p=ControlSpec.new(-0.8,0.8, \lin, 0.01);
   bin_c = ControlSpec(3, 15, \linear, 0.5);
 
 /**
@@ -475,6 +476,7 @@ didg_label.stringColor=Color.white;
 
 //controller for the stereo position of pad
 slider_soundscape.action={|sl| if(~global[\main].isRunning == true,{ ~global[\water_synth].set(\pos,wat_p.map(sl.value));
+ wat_p.map(sl.value).postln;
 })};
 //controller for the frequencies waves
 frequencies_knob.action = {|i| if(~global[\main].isRunning == true,{~global[\waves].set(\offset_freq, bin_c.map(i.value))})};
