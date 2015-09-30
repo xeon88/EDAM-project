@@ -18,6 +18,7 @@
      pad: Bus.audio(s,2),
      water: Bus.audio(s,2),
      waternoise: Bus.audio(s,1),
+     wind: Bus.audio(s,1),
      grug:Bus.audio(s,1),
      didger: Bus.audio(s,2)
   ),
@@ -47,7 +48,7 @@ SynthDef to make Binaural waves with frequencies in range [3,15] hz. Waves are g
 (
 
 SynthDef(\waves,{ |offset_freq=4.5|
-  var waves;
+  var waves,wind,output;
 
   waves=Mix.fill(2,{
     arg index;
@@ -57,7 +58,10 @@ SynthDef(\waves,{ |offset_freq=4.5|
     mod_amp=0.15*(1/(index+1)**2);
     SinOsc.ar([lf,rf],0,mod_amp);
     });
-  Out.ar(~global[\bus][\waves].index,waves);
+  wind=Pan2.ar(In.ar(~global[\bus][\wind].index,1)
+     ,SinOsc.kr(0.125,0,0.8,0));
+  output=waves+wind;
+  Out.ar(~global[\bus][\waves].index,output);
 }).add;
 
 /*
@@ -78,7 +82,7 @@ SynthDef(\pad,{ |freq|
     ~env=Env.new([0,1,0.7,0],[3/index,1/index,4/index,2/index],'sine',nil,0,0); // high harmonics has to last less than low harmonics and carrier freq
     lf= (index)*freq;
     rf= lf + ~global[\offset_pad] ; // set offest
-    mod_amp=0.15*(1/(index)**2);
+    mod_amp=0.025*(1/(index)**2);
     (Saw.ar([lf,rf]+Rand(-1,0),mod_amp) +
      Saw.ar([lf,rf]+ Rand(0,1),mod_amp,0) +
      LFTri.ar([lf,rf],0,mod_amp))*EnvGen.ar(~env);}
@@ -86,17 +90,19 @@ SynthDef(\pad,{ |freq|
   pad=pad*PinkNoise.ar(0.025,1); // add noise to low frequencies
   pad=BLowPass4.ar(pad,750,0.9); // more soft sound
   pad=CombC.ar(pad,0.35,SinOsc.kr(2,0,0.0005,0.3),1); // add a slowness sensation through delay
-  pad=GVerb.ar(pad,8,0.5,0.6); // add strong reverb
+  pad=GVerb.ar(pad,9,2.5,0.6); // add strong reverb
   Out.ar(~global[\bus][\pad].index,pad);
 }).add;
 
 
-
+/*
+ Wind approximate to go with binarual waves
+*/
 
 SynthDef(\wind, {
   var wind;
-  wind=Pan2.ar(BBandPass.ar(WhiteNoise.ar(0.025),SinOsc.ar(0.125,pi,300,390),0.75),SinOsc.ar(0.125,0,0.65,0));
-  Out.ar(~global[\bus][\waves],[wind,wind]);
+  wind=BBandPass.ar(WhiteNoise.ar(0.25),SinOsc.ar(0.125,pi,300,390),0.75);
+  Out.ar(~global[\bus][\wind],wind);
 }).add;
 
 
@@ -104,6 +110,10 @@ SynthDef(\wind, {
  Water SynthDef
 */
 
+/*
+ SynthDef to approximate running water particles.
+ This synth must be loaded more
+*/
 
 SynthDef(\grugling,{
 
@@ -189,7 +199,6 @@ SynthDef(\main,{ |pad_vol=0.15, waves_vol=0.1 ,water_vol=0.15 ,didger_vol=0.15|
   in_water=In.ar(~global[\bus][\water].index,2)*water_vol;
   // collect from private didger bus
   in_didger=In.ar(~global[\bus][\didger].index,2)*didger_vol;
-
   output=in_pad + in_waves + in_water + in_didger;
   output=Limiter.ar(output,0.9);
   Out.ar(0,output);
@@ -250,7 +259,7 @@ Routine to compute water sound
 ~global[\water_rout]=Routine.new({
 
   ~global[\grug]=Synth(\grugling);
-  15.do({
+  20.do({
     ~global[\grug]=Synth.after(~global[\grug],\grugling);
   });
 
@@ -263,7 +272,7 @@ Routine to compute water sound
 
   var t1, wait;
   t1=Buffer.read(s,Platform.resourceDir +/+ "sounds/didg_3.wav");
-  wait=21.89;
+  wait=21.87;
   inf.do({
    ~global[\didger_synth]=Synth(\didger,[\bufnum, t1.bufnum]);
    wait.yield;
@@ -462,10 +471,10 @@ didg_label.stringColor=Color.white;
 
 
   // map from 0..1 to other ranges
-  pad_v=ControlSpec.new(0.0,0.5, \lin, 0.01);
+  pad_v=ControlSpec.new(0.0,0.3, \lin, 0.01);
   wav_v=ControlSpec.new(0.0,0.2, \lin, 0.01);
-  did_v=ControlSpec.new(0.0,0.5, \lin, 0.01);
-  wat_v=ControlSpec.new(0.0,0.5, \lin, 0.01);
+  did_v=ControlSpec.new(0.0,0.3, \lin, 0.01);
+  wat_v=ControlSpec.new(0.0,0.3, \lin, 0.01);
   wat_p=ControlSpec.new(-0.8,0.8, \lin, 0.01);
   bin_c = ControlSpec(3, 15, \linear, 0.5);
 
@@ -507,9 +516,10 @@ playStop.action = {|x|
 
 	},
 	{ //else (if played)
-      ~global[\waves]=Synth(\waves,[\offset_freq, frequencies_knob.value]);
-    ~global[\wind]=Synth.after(~global[\waves],\wind);
-      ~global[\main]=Synth.after(~global[\wind],\main,[\pad_vol,pad_knob.value, \waves_vol,waves_knob.value ,\water_vol,water_knob.value,\didger_vol,didg_knob.value]);
+      ~global[\wind]=Synth(\wind);
+      ~global[\waves]=Synth.after(~global[\wind],\waves,[\offset_freq, frequencies_knob.value]);
+      ~global[\main]=Synth.after(~global[\waves],\main,[\pad_vol,pad_v.map(pad_knob.value), \waves_vol,wav_v.map(waves_knob.value) ,
+        \water_vol,wat_v.map(water_knob.value),\didger_vol,did_v.map(didg_knob.value)]);
     ~global[\pad].reset;
     ~global[\pad].play(SystemClock);
     ~global[\didger_rout].reset;
