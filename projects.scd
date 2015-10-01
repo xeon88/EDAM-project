@@ -53,12 +53,12 @@ SynthDef(\waves,{ |offset_freq=4.5|
   waves=Mix.fill(2,{
     arg index;
     var lf, rf , mod_amp, env;
-    lf= (index+1)*~global[\waves_carrier];
+    lf= (index+1)*~global[\waves_carrier]; // tone pure carrier
     rf= lf + offset_freq;
-    mod_amp=0.15*(1/(index+1)**2);
+    mod_amp=0.15*(1/(index+1)**2); // quadratic decrease of amp
     SinOsc.ar([lf,rf],0,mod_amp);
     });
-  wind=Pan2.ar(In.ar(~global[\bus][\wind].index,1)
+  wind=Pan2.ar(In.ar(~global[\bus][\wind].index,1) // collect wind from private wind bus
      ,SinOsc.kr(0.125,0,0.8,0));
   output=waves+wind;
   Out.ar(~global[\bus][\waves].index,output);
@@ -131,12 +131,14 @@ SynthDef(\grugling,{
     // General tendency for upward rise
     + EnvGen.kr(Env.perc(1).range(0,17), triglobal);
     BLowPass.ar(SinOsc.ar(freq,Rand(0,pi/2), 0.05),2000,1.75);
-    }).mean;
+    }).mean;  // to approximate a normal distribution
   };
 
   Out.ar(~global[\bus][\grug].index,grugling);
 }).add;
 
+/*Synth to add the water vapour noise, to simulate the presence
+of waterfall in the scenario*/
 
 SynthDef(\waternoise,{
 
@@ -149,9 +151,9 @@ SynthDef(\waternoise,{
     SinOsc.ar(freq,0,0.15/(100*index+1)**2);
 });
 
-  noise=noise + WhiteNoise.ar(0.001);
+  noise=noise * WhiteNoise.ar(0.1); // add white noise to simulate particicles of water wapour
   noise=BLowPass.ar(noise,2000,1.5);
-  noise=GVerb.ar(noise,250,2.5,0.7,0.4,15,0.4);
+  noise=GVerb.ar(noise,250,2.5,0.7,0.4,15,0.4); // add reverb of outdoor scenario
   Out.ar(~global[\bus][\waternoise].index,noise);
 }).add;
 
@@ -160,14 +162,17 @@ SynthDef(\waternoise,{
 SynthDef(\water,{ |pos=0|
 
   var noise, grug , water, cp;
-
+  // collect from private bus
   noise=In.ar(~global[\bus][\waternoise].index,1);
   grug=In.ar(~global[\bus][\grug].index,1);
-  water=noise+grug;
+  water=noise+grug; // mix grugling with water vapour
   Out.ar(~global[\bus][\water].index,
-    Pan2.ar(water,pos));
+    Pan2.ar(water,pos)); // stereo panning
 }).add;
 
+/*
+Synth to execute the melody based on didgeridoo and shaman drum
+*/
 
 SynthDef(\didger,{ |bufnum|
 
@@ -213,19 +218,18 @@ SynthDef(\main,{ |pad_vol=0.15, waves_vol=0.1 ,water_vol=0.15 ,didger_vol=0.15|
 */
 
 /*
-Routine to generate pad sounds through a random note choose.
+Routine to generate pad sounds through a melody pattern.
 Since end of evelope routine provide to clean server from synth just be played
 
 */
 ~global[\pad]=Routine.new({
     inf.do({
-    var freq , time_new_synth,time_free, pitches,
+    var freq , time_new_synth,time_free, melody,
      check,variance;
     time_new_synth=5.5;
 
-
-    pitches=[[60,56,55],[67,69,73],[68,64,63],[69,66,70],[70,71,73],[70,71,74],[72,73,59]];
-      freq=Prand(pitches,inf).asStream; // Random note choose
+      melody=#[[40,60,50],[52,69,58],[45,65],55,[60,65,74]];
+      freq=Pseq(melody,inf).asStream; // Random note choose
 
     switch(~global[\check].value,
       1,{ // first iteration
@@ -237,14 +241,15 @@ Since end of evelope routine provide to clean server from synth just be played
       2,{
       ~global[\act_pad]=Synth(\pad,[\freq,freq.next.midicps]);
       ~global[\check]=~global[\check]+1;
-      time_new_synth.yield;
+        time_new_synth.yield;
+
       },// third or more iteration
       3,{
       ~global[\next_pad]=Synth(\pad,[\freq,freq.next.midicps]);
       ~global[\prev_pad].free; // free old synth
       ~global[\prev_pad]=~global[\act_pad];
       ~global[\act_pad]=~global[\next_pad];
-      time_new_synth.yield; // stop routine
+        time_new_synth.yield; // stop routine
       }
     );
 
@@ -253,7 +258,7 @@ Since end of evelope routine provide to clean server from synth just be played
   });
 
 /*
-Routine to compute water sound
+Routine to compute water sound loading grugling synth and water noise
 */
 
 ~global[\water_rout]=Routine.new({
@@ -272,7 +277,7 @@ Routine to compute water sound
 
   var t1, wait;
   t1=Buffer.read(s,Platform.resourceDir +/+ "sounds/didg_3.wav");
-  wait=21.87;
+  wait=21.87; // duration in sec of sample
   inf.do({
    ~global[\didger_synth]=Synth(\didger,[\bufnum, t1.bufnum]);
    wait.yield;
@@ -324,6 +329,7 @@ var window,
 playStop,
     stethoscope,
 
+// control spec declaration to map value
 pad_v,
 wav_v,
 did_v ,
@@ -393,7 +399,7 @@ pos.stringColor=Color.white;
 /* Water control*/
 
 water_knob = GUI.knob.new(window, Rect(900, 215, 100, 100)) ;
-water_knob.value = 0.5;
+water_knob.value = 0;
 water_knob.color = water_knob.color.put(1,Color.blue);
 water_knob.color = water_knob.color.put(3,Color.black);
 
@@ -433,7 +439,7 @@ waves_label.stringColor=Color.white;
 /* pad control */
 
 pad_knob = GUI.knob.new(window, Rect(600, 215, 100, 100)) ;
-pad_knob.value = 0;
+pad_knob.value = 0.4;
 pad_knob.color = pad_knob.color.put(1,Color.blue);
 pad_knob.color = pad_knob.color.put(3,Color.black);
 
