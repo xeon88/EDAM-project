@@ -12,7 +12,6 @@
 ~global=(
   waves_carrier: 120, // pure tone frequency to create binaural
   offset_pad: 4.5, // freq offset between stereo channel into pad
-  check: 1, // flag for pad routine
   bus: (  // private bus
      waves: Bus.audio(s,2),
      pad: Bus.audio(s,2),
@@ -223,34 +222,48 @@ Since end of evelope routine provide to clean server from synth just be played
 
 */
 ~global[\pad]=Routine.new({
+
+    var check , freq;
+    check=1;
+    freq=Pseq(#[[40,60,50],[52,69,58],[45,65],55,[60,65,74]],inf).asStream; // Random note choose
     inf.do({
-    var freq , time_new_synth,time_free, melody,
-     check,variance;
+    var time_new_synth,time_free, melody, variance;
     time_new_synth=5.5;
 
-      melody=#[[40,60,50],[52,69,58],[45,65],55,[60,65,74]];
-      freq=Pseq(melody,inf).asStream; // Random note choose
 
-    switch(~global[\check].value,
+    switch(check,
       1,{ // first iteration
+        freq.next.midicps.postln;
       ~global[\act_pad]=Synth(\pad,[\freq,freq.next.midicps]);
       ~global[\prev_pad]=~global[\act_pad];
-      ~global[\check]=~global[\check]+1;
-      time_new_synth.yield;
+      check=check+1;
+        time_new_synth.yield;
       }, // second iteration
       2,{
-      ~global[\act_pad]=Synth(\pad,[\freq,freq.next.midicps]);
-      ~global[\check]=~global[\check]+1;
+        freq.next.midicps.postln;
+      ~global[\act_pad]=Synth.after(~global[\act_pad],\pad,[\freq,freq.next.midicps]);
+      check=check+1;
         time_new_synth.yield;
 
       },// third or more iteration
       3,{
-      ~global[\next_pad]=Synth(\pad,[\freq,freq.next.midicps]);
+        freq.next.midicps.postln;
+      ~global[\next_pad]=Synth.after(~global[\act_pad],\pad,[\freq,freq.next.midicps]);
+      ~global[\prev_pad].free; // free old synth
+      ~global[\prev_pad]=~global[\act_pad];
+      ~global[\act_pad]=~global[\next_pad];
+        time_new_synth.yield; // stop routine
+       check=check+1;
+      },
+      4,{
+        freq.next.midicps.postln;
+      ~global[\next_pad]=Synth.after(~global[\next_pad],\pad,[\freq,freq.next.midicps]);
       ~global[\prev_pad].free; // free old synth
       ~global[\prev_pad]=~global[\act_pad];
       ~global[\act_pad]=~global[\next_pad];
         time_new_synth.yield; // stop routine
       }
+
     );
 
   });
@@ -264,7 +277,7 @@ Routine to compute water sound loading grugling synth and water noise
 ~global[\water_rout]=Routine.new({
 
   ~global[\grug]=Synth(\grugling);
-  20.do({
+  30.do({
     ~global[\grug]=Synth.after(~global[\grug],\grugling);
   });
 
