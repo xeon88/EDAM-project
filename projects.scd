@@ -3,6 +3,20 @@
     PROGETTO EDAM
     Author: Marco Corona
     ***********************
+
+ In this project i build an ambient sound for meditation, using natural element like water and wind, which are synthetized through additive sound design.
+Natural element are going with abstract sound , binaural beats and native australian instrument such as didgeridoo and shaman drum.
+It was implemented a gui to control volume of single parts, to modify stereo panning of water and change frequency of binaural beats
+
+   USAGE
+
+  Load into server in this order:
+   1 - Global dictionary
+   2 - SynthDefs
+   3 - Routines
+   4 - Gui
+
+
 */
 
 /*
@@ -26,8 +40,8 @@
   waves: nil, // waves synth
   wind: nil, // wind synth
   water_rout: nil, // water routine
-  grug: nil,
-  noise: nil,
+  grug: nil, // grugling synth
+  noise: nil, // water noise synth
   water_synth: nil, // water synth
   didger_rout:nil // didgeridoo routine
 );
@@ -51,7 +65,7 @@ SynthDef(\waves,{ |offset_freq=4.5|
     var lf, rf , mod_amp, env;
     lf= (index+1)*~global[\waves_carrier]; // tone pure carrier
     rf= lf + offset_freq;
-    mod_amp=0.15*(1/(index+1)**2); // quadratic decrease of amp
+    mod_amp=0.1*(1/(index+1)**2); // quadratic decrease of amp
     SinOsc.ar([lf,rf],0,mod_amp);
     });
   wind=Pan2.ar(In.ar(~global[\bus][\wind].index,1) // collect wind from private wind bus
@@ -77,15 +91,16 @@ SynthDef(\pad,{ |freq|
     index=index+1;
     ~env=Env.new([0,1,0.7,0],[3.5/index,1.5/index,4/index,3/index],'sine',nil,0,0); // high harmonics has to last less than low harmonics and carrier freq
     lf= (index)*freq;
-    rf= lf + ~global[\offset_pad] ; // set offest
+    rf= lf + ~global[\offset_pad] ; // set offset
     mod_amp=0.025*(1/(index)**2);
+    // base component of pad
     (Saw.ar([lf,rf]+Rand(-1,0),mod_amp) +
      Saw.ar([lf,rf]+ Rand(0,1),mod_amp,0) +
      LFTri.ar([lf,rf],0,mod_amp))*EnvGen.ar(~env);}
    );
   pad=pad*PinkNoise.ar(0.025,1); // add noise to low frequencies
   pad=BLowPass4.ar(pad,750,0.9); // more soft sound
-  pad=CombC.ar(pad,0.35,SinOsc.kr(2,0,0.0005,0.3),1); // add a slowness sensation through delay
+  pad=CombC.ar(pad,0.35,SinOsc.kr(2,0,0.0005,0.3),1); // add a slowness sensation
   pad=GVerb.ar(pad,9,2.5,0.6); // add strong reverb
   Out.ar(~global[\bus][\pad].index,pad);
 }).add;
@@ -97,7 +112,10 @@ SynthDef(\pad,{ |freq|
 
 SynthDef(\wind, {
   var wind;
-  wind=BBandPass.ar(WhiteNoise.ar(0.25),SinOsc.ar(0.125,pi,300,390),0.75);
+  wind=BBandPass.ar(
+         WhiteNoise.ar(0.15),
+         SinOsc.ar(0.125,pi,300,390), // soft and hard pow of wind effect
+    0.75); // coeff < 1 , narrow bandwidth
   Out.ar(~global[\bus][\wind],wind);
 }).add;
 
@@ -121,12 +139,12 @@ SynthDef(\grugling,{
     triglobal = Dust.kr(freq_dust);
 		freq =
 			// Generally choose from a varied base freq
-			TRand.kr(400,10000, triglobal)
+			TRand.kr(400,7000, triglobal)
 			// Wobbly variation
 			+ LFNoise0.kr(20, mul: 150)
     // General tendency for upward rise
     + EnvGen.kr(Env.perc(1).range(0,17), triglobal);
-    BLowPass.ar(SinOsc.ar(freq,Rand(0,pi/2), 0.05),2000,1.75);
+    BLowPass.ar(SinOsc.ar(freq,Rand(0,pi/2), 0.2),2000,1.75);
     }).mean;  // to approximate a normal distribution
   };
 
@@ -144,10 +162,10 @@ SynthDef(\waternoise,{
    arg index;
    var freq;
     freq =100+1000*index+ Rand(0,0.125);
-    SinOsc.ar(freq,0,0.15/(100*index+1)**2);
+    SinOsc.ar(freq,0,0.005/(100*index+1)**2);
 });
 
-  noise=noise * WhiteNoise.ar(0.1); // add white noise to simulate particicles of water wapour
+  noise=noise + WhiteNoise.ar(0.005); // add white noise to simulate particicles of water wapour
   noise=BLowPass.ar(noise,2000,1.5);
   noise=GVerb.ar(noise,250,2.5,0.7,0.4,15,0.4); // add reverb of outdoor scenario
   Out.ar(~global[\bus][\waternoise].index,noise);
@@ -239,21 +257,18 @@ Since end of evelope routine provide to clean server from synth just be played
       act=Synth(\pad,[\freq,freq.next.midicps]);
       prev=act;
       check=check+1;
-      time_new_synth.yield;
       }, // second iteration
       2,{
       act=Synth.after(act,\pad,[\freq,freq.next.midicps]);
       check=check+1;
-      time_new_synth.yield;
 
       },// third iteration
       3,{
 
       next=Synth.after(act,\pad,[\freq,freq.next.midicps]);
       prev.free; // free old synth
-      prev=act;
+      prev=act;  //
       act=next;
-      time_new_synth.yield; // stop routine
       check=check+1;
       },
       4,{
@@ -262,30 +277,40 @@ Since end of evelope routine provide to clean server from synth just be played
       prev.free; // free old synth
       prev=act;
       act=next;
-      time_new_synth.yield; // stop routine
       }
-
     );
 
+     time_new_synth.yield; // stop routine
   });
 
   });
 
 /*
 Routine to compute water sound loading grugling synth and water noise
+
 */
 
 ~global[\water_rout]=Routine.new({
 
+  // first load 30 istance of grugling synth
   ~global[\grug]=Synth(\grugling);
   30.do({
     ~global[\grug]=Synth.after(~global[\grug],\grugling);
   });
 
+   // add water vapour noise
   ~global[\noise]=Synth.after(~global[\grug],\waternoise);
+
+  // load final synth of water
+
   ~global[\water_synth]=Synth.after(~global[\noise],\water,[\pos,0]);
+  ~global[\grug].free;
+  ~global[\noise].free;
 });
 
+/*
+ This routine read from a sample file and load it into a buffer before to exec a loop where buffer content is red each 21.9 sec.
+*/
 
 ~global[\didger_rout] = Routine.new({
 
