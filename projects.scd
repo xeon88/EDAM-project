@@ -23,9 +23,6 @@
   ),
   main: nil, // main synth
   pad: nil,  // pad routine
-  act_pad: nil, // pad actually played
-  prev_pad:nil, // pad to be removed
-  next_pad:nil, // next pad to be played
   waves: nil, // waves synth
   wind: nil, // wind synth
   water_rout: nil, // water routine
@@ -78,7 +75,7 @@ SynthDef(\pad,{ |freq|
     arg index;
     var lf, rf , mod_amp;
     index=index+1;
-    ~env=Env.new([0,1,0.7,0],[3/index,1/index,4/index,2/index],'sine',nil,0,0); // high harmonics has to last less than low harmonics and carrier freq
+    ~env=Env.new([0,1,0.7,0],[3.5/index,1.5/index,4/index,3/index],'sine',nil,0,0); // high harmonics has to last less than low harmonics and carrier freq
     lf= (index)*freq;
     rf= lf + ~global[\offset_pad] ; // set offest
     mod_amp=0.025*(1/(index)**2);
@@ -223,45 +220,49 @@ Since end of evelope routine provide to clean server from synth just be played
 */
 ~global[\pad]=Routine.new({
 
-    var check , freq;
+    var check , freq ,
+       prev, // pad to be removed
+       act, // pad actually played
+       next; // next pad to be played
+
     check=1;
-    freq=Pseq(#[[40,60,50],[52,69,58],[45,65],55,[60,65,74]],inf).asStream; // Random note choose
+  freq=Pseq(#[[39,45,53],[42,47,54],[66,57,43],[55,50,43],[50,41,40],[50,43],[47,55],[47,49,51]],inf).asStream; // Random note choose
+
+
     inf.do({
     var time_new_synth,time_free, melody, variance;
-    time_new_synth=5.5;
+    time_new_synth=9;
 
 
     switch(check,
       1,{ // first iteration
-        freq.next.midicps.postln;
-      ~global[\act_pad]=Synth(\pad,[\freq,freq.next.midicps]);
-      ~global[\prev_pad]=~global[\act_pad];
+      act=Synth(\pad,[\freq,freq.next.midicps]);
+      prev=act;
       check=check+1;
-        time_new_synth.yield;
+      time_new_synth.yield;
       }, // second iteration
       2,{
-        freq.next.midicps.postln;
-      ~global[\act_pad]=Synth.after(~global[\act_pad],\pad,[\freq,freq.next.midicps]);
+      act=Synth.after(act,\pad,[\freq,freq.next.midicps]);
       check=check+1;
-        time_new_synth.yield;
+      time_new_synth.yield;
 
-      },// third or more iteration
+      },// third iteration
       3,{
-        freq.next.midicps.postln;
-      ~global[\next_pad]=Synth.after(~global[\act_pad],\pad,[\freq,freq.next.midicps]);
-      ~global[\prev_pad].free; // free old synth
-      ~global[\prev_pad]=~global[\act_pad];
-      ~global[\act_pad]=~global[\next_pad];
-        time_new_synth.yield; // stop routine
-       check=check+1;
+
+      next=Synth.after(act,\pad,[\freq,freq.next.midicps]);
+      prev.free; // free old synth
+      prev=act;
+      act=next;
+      time_new_synth.yield; // stop routine
+      check=check+1;
       },
       4,{
-        freq.next.midicps.postln;
-      ~global[\next_pad]=Synth.after(~global[\next_pad],\pad,[\freq,freq.next.midicps]);
-      ~global[\prev_pad].free; // free old synth
-      ~global[\prev_pad]=~global[\act_pad];
-      ~global[\act_pad]=~global[\next_pad];
-        time_new_synth.yield; // stop routine
+
+      next=Synth.after(next,\pad,[\freq,freq.next.midicps]);
+      prev.free; // free old synth
+      prev=act;
+      act=next;
+      time_new_synth.yield; // stop routine
       }
 
     );
@@ -290,7 +291,7 @@ Routine to compute water sound loading grugling synth and water noise
 
   var t1, wait;
   t1=Buffer.read(s,Platform.resourceDir +/+ "sounds/didg_3.wav");
-  wait=21.87; // duration in sec of sample
+  wait=21.9; // duration in sec of sample
   inf.do({
    ~global[\didger_synth]=Synth(\didger,[\bufnum, t1.bufnum]);
    wait.yield;
@@ -412,7 +413,7 @@ pos.stringColor=Color.white;
 /* Water control*/
 
 water_knob = GUI.knob.new(window, Rect(900, 215, 100, 100)) ;
-water_knob.value = 0;
+water_knob.value = 0.1;
 water_knob.color = water_knob.color.put(1,Color.blue);
 water_knob.color = water_knob.color.put(3,Color.black);
 
@@ -434,7 +435,7 @@ water_label.stringColor=Color.white;
 /* waves control*/
 
 waves_knob = GUI.knob.new(window, Rect(750, 215, 100, 100)) ;
-waves_knob.value = 0;
+waves_knob.value = 0.5;
 waves_knob.color = waves_knob.color.put(1,Color.blue);
 waves_knob.color = waves_knob.color.put(3,Color.black);
 
@@ -452,7 +453,7 @@ waves_label.stringColor=Color.white;
 /* pad control */
 
 pad_knob = GUI.knob.new(window, Rect(600, 215, 100, 100)) ;
-pad_knob.value = 0.4;
+pad_knob.value = 0.3;
 pad_knob.color = pad_knob.color.put(1,Color.blue);
 pad_knob.color = pad_knob.color.put(3,Color.black);
 
@@ -471,7 +472,7 @@ pad_label.stringColor=Color.white;
 /* didgeridoo control*/
 
 didg_knob = GUI.knob.new(window, Rect(450, 215, 100, 100)) ;
-didg_knob.value = 0;
+didg_knob.value = 0.15;
 didg_knob.color = didg_knob.color.put(1,Color.blue);
 didg_knob.color = didg_knob.color.put(3,Color.black);
 
